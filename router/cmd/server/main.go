@@ -1,18 +1,23 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	http.HandleFunc("/health", healthHandler)
-	fmt.Println("Router service starting on port 8080....")
-	http.ListenAndServe(":8080", nil)
+	router := gin.Default()
+
+	router.GET("/health", healthHandler)
+
+	router.Run(":8080")
 }
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"status":"ok","service":"optiroute-router"}`)
+func healthHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"service": "optiroute-router",
+	})
+
 }

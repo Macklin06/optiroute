@@ -1,27 +1,21 @@
 package handlers
 
 import (
-	"context"
-	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-redis/redis/v8"
-	"gorm.io/gorm"
 
 	"github.com/Macklin06/optiroute/router/internal/models"
+	"github.com/Macklin06/optiroute/router/internal/services"
 )
 
 type DriverHandler struct {
-	RedisClient *redis.Client
-	DB          *gorm.DB
+	DriverService *services.DriverService
 }
 
-func NewDriverHandler(redisClient *redis.Client, db *gorm.DB) *DriverHandler {
+func NewDriverHandler(driverService *services.DriverService) *DriverHandler {
 	return &DriverHandler{
-		RedisClient: redisClient,
-		DB:          db,
+		DriverService: driverService,
 	}
 }
 
@@ -36,28 +30,9 @@ func (h *DriverHandler) UpdateLocation(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
-	locationKey := fmt.Sprintf("driver:location:%s", req.DriverID)
-	locationValue := fmt.Sprintf("%f,%f", req.Latitude, req.Longitude)
-
-	err := h.RedisClient.Set(ctx, locationKey, locationValue, 60*time.Second).Err()
-	if err != nil {
+	if err := h.DriverService.UpdateDriverLocation(req); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to update location cache",
-		})
-		return
-	}
-
-	locationRecord := models.DriverLocation{
-		DriverID:  req.DriverID,
-		Latitude:  req.Latitude,
-		Longitude: req.Longitude,
-		CreatedAt: time.Now(),
-	}
-
-	if result := h.DB.Create(&locationRecord); result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to persist location",
+			"error": err.Error(),
 		})
 		return
 	}
@@ -67,5 +42,20 @@ func (h *DriverHandler) UpdateLocation(c *gin.Context) {
 		"latitude":  req.Latitude,
 		"longitude": req.Longitude,
 		"message":   "location updated successfully",
+	})
+}
+
+func (h *DriverHandler) GetActiveDrivers(c *gin.Context) {
+	drivers, err := h.DriverService.GetActiveDrivers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"drivers": drivers,
+		"count":   len(drivers),
 	})
 }

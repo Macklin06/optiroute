@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/Macklin06/optiroute/router/config"
 	"github.com/Macklin06/optiroute/router/internal/handlers"
 	"github.com/Macklin06/optiroute/router/internal/models"
+	"github.com/Macklin06/optiroute/router/internal/services"
 )
 
 func main() {
@@ -28,7 +30,14 @@ func main() {
 		DB:       0,
 	})
 
-	driverHandler := handlers.NewDriverHandler(redisClient, db)
+	ctx := context.Background()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Fatal("Failed to connect to Redis:", err)
+	}
+	log.Println("Redis connected successfully")
+
+	driverService := services.NewDriverService(redisClient, db)
+	driverHandler := handlers.NewDriverHandler(driverService)
 
 	router := gin.Default()
 
@@ -39,6 +48,7 @@ func main() {
 		drivers := v1.Group("/drivers")
 		{
 			drivers.PUT("/location", driverHandler.UpdateLocation)
+			drivers.GET("/active", driverHandler.GetActiveDrivers)
 		}
 	}
 

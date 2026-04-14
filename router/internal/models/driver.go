@@ -22,3 +22,9 @@ type LocationUpdate struct {
 	Latitude  float64 `json:"latitude"   binding:"required"`
 	Longitude float64 `json:"longitude"  binding:"required"`
 }
+
+type DriverLocationResponse struct {
+	DriverID  string  `json:"driver_id"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+}

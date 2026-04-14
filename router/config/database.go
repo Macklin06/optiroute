@@ -1,3 +1,4 @@
+// Database configuration and connection
 package config
 
 import (
@@ -9,6 +10,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// DatabaseConfig holds connection parameters
 type DatabaseConfig struct {
 	Host     string
 	Port     string
@@ -17,6 +19,7 @@ type DatabaseConfig struct {
 	DBName   string
 }
 
+// NewDatabaseConfig creates config with default local values
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
 		Host:     "localhost",
@@ -27,12 +30,15 @@ func NewDatabaseConfig() *DatabaseConfig {
 	}
 }
 
+// ConnectDatabase opens a connection to PostgreSQL
 func ConnectDatabase(cfg *DatabaseConfig) *gorm.DB {
+	// Build connection string for PostgreSQL
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName,
 	)
 
+	// Connect to database
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})

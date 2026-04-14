@@ -1,3 +1,4 @@
+// Main router service
 package main
 
 import (
@@ -16,6 +17,7 @@ import (
 )
 
 func main() {
+	// Connect to database and run migrations
 	dbConfig := config.NewDatabaseConfig()
 	db := config.ConnectDatabase(dbConfig)
 
@@ -24,21 +26,25 @@ func main() {
 		&models.DriverLocation{},
 	)
 
+	// Connect to Redis
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
 		Password: "",
 		DB:       0,
 	})
 
+	// Check if Redis is running
 	ctx := context.Background()
 	if err := redisClient.Ping(ctx).Err(); err != nil {
 		log.Fatal("Failed to connect to Redis:", err)
 	}
 	log.Println("Redis connected successfully")
 
+	// Setup service and handler layers
 	driverService := services.NewDriverService(redisClient, db)
 	driverHandler := handlers.NewDriverHandler(driverService)
 
+	// Create router and setup routes
 	router := gin.Default()
 
 	router.GET("/health", healthHandler)
@@ -52,12 +58,14 @@ func main() {
 		}
 	}
 
+	// Start server on port 8080
 	fmt.Println("OptiRoute router starting on :8080")
 	if err := router.Run(":8080"); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
 }
 
+// Health check endpoint
 func healthHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",

@@ -24,6 +24,7 @@ func main() {
 	db.AutoMigrate(
 		&models.Driver{},
 		&models.DriverLocation{},
+		&models.Order{},
 	)
 
 	// Connect to Redis
@@ -43,6 +44,8 @@ func main() {
 	// Setup service and handler layers
 	driverService := services.NewDriverService(redisClient, db)
 	driverHandler := handlers.NewDriverHandler(driverService)
+	orderService := services.NewOrderService(db)
+	orderHandler := handlers.NewOrderHandler(orderService)
 
 	// Create router and setup routes
 	router := gin.Default()
@@ -55,6 +58,12 @@ func main() {
 		{
 			drivers.PUT("/location", driverHandler.UpdateLocation)
 			drivers.GET("/active", driverHandler.GetActiveDrivers)
+		}
+
+		orders := v1.Group("/orders")
+		{
+			orders.POST("/", orderHandler.CreateOrder)
+			orders.GET("/zone/:zone_id", orderHandler.GetPendingOrdersByZone)
 		}
 	}
 

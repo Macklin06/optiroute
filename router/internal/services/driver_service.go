@@ -17,59 +17,118 @@ import (
 type DriverService struct {
 	RedisClient *redis.Client
 	DB          *gorm.DB
+	CB          *CircuitBreaker
 }
 
-// NewDriverService creates a new service
 func NewDriverService(redisClient *redis.Client, db *gorm.DB) *DriverService {
 	return &DriverService{
 		RedisClient: redisClient,
 		DB:          db,
+		CB:          NewCircuitBreaker(3, 30*time.Second),
 	}
 }
 
-// UpdateDriverLocation updates a driver's location in both Redis cache and PostgreSQL database.
+// UpdateDriverLocation updates driver location data.
+// Flow:
+// 1. Try Redis write if circuit breaker allows it
+// 2. Always write to PostgreSQL
+// 3. Publish location event to Redis pub/sub
 func (s *DriverService) UpdateDriverLocation(req models.LocationUpdate) error {
-	// context.Background() = no timeout, infinite wait.
-	ctx := context.Background()
 
-	// Build Redis key using pattern: "driver:location:<driver_id>"
-	locationKey := fmt.Sprintf("driver:location:%s", req.DriverID)
-
-	// Build Redis value: comma-separated lat,lng
-	locationValue := fmt.Sprintf("%f,%f", req.Latitude, req.Longitude)
-
-	// Write to Redis with 60-second TTL.
-	// After 60s, Redis auto-deletes the key (keeps only fresh data).
-	err := s.RedisClient.Set(ctx, locationKey, locationValue, 60*time.Second).Err()
-	if err != nil {
-		// Error wrapping with %w preserves the original error chain for debugging.
-		return fmt.Errorf("redis write failed: %w", err)
-	}
-
-	// Create database record struct filled with location data.
-	// CreatedAt is set to current timestamp (server time).
+	// Create PostgreSQL record struct from incoming request data.
+	// This becomes one permanent row in driver_locations table.
 	record := models.DriverLocation{
 		DriverID:  req.DriverID,
 		Latitude:  req.Latitude,
 		Longitude: req.Longitude,
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now(), // Current server timestamp
 	}
 
-	// Insert record into PostgreSQL.
+	// Ask circuit breaker:
+	// "Is Redis healthy enough to attempt requests?"
+	if s.CB.CanRequest() {
+
+		// Create base context for Redis operation.
+		// Context carries timeout/cancellation metadata.
+		ctx := context.Background()
+
+		// Redis key pattern:
+		// driver:location:<driver_id>
+		// Example: driver:location:d1
+		locationKey := fmt.Sprintf("driver:location:%s", req.DriverID)
+
+		// Redis value:
+		// latitude,longitude
+		// Example: 12.971600,77.594600
+		locationValue := fmt.Sprintf("%f,%f", req.Latitude, req.Longitude)
+
+		// Write latest location to Redis with 60-second TTL.
+		// TTL auto-removes stale offline drivers.
+		err := s.RedisClient.Set(
+			ctx,
+			locationKey,
+			locationValue,
+			60*time.Second,
+		).Err()
+
+		// Redis write failed.
+		if err != nil {
+
+			// Tell circuit breaker:
+			// "Redis failed one more time."
+			s.CB.RecordFailure()
+
+			// Log warning but DO NOT fail request.
+			// PostgreSQL fallback still keeps system working.
+			log.Printf(
+				"Redis failed, fallback to PostgreSQL only (failures: %d)",
+				s.CB.failureCount,
+			)
+
+		} else {
+
+			// Redis succeeded.
+			// Reset failure counter and keep circuit closed.
+			s.CB.RecordSuccess()
+		}
+
+	} else {
+
+		// Circuit breaker is OPEN.
+		// Skip Redis entirely to avoid hammering failing service.
+		// Directly continue with PostgreSQL write.
+		log.Println(
+			"Circuit OPEN: skipping Redis, writing to PostgreSQL only",
+		)
+	}
+
+	// Always write to PostgreSQL.
+	// PostgreSQL is the permanent source of truth.
 	if result := s.DB.Create(&record); result.Error != nil {
-		// Database write failed: wrap error and return.
-		// Handler will catch this and return HTTP 500.
-		return fmt.Errorf("postgresql write failed: %w", result.Error)
+
+		// Database failure is CRITICAL.
+		// Unlike Redis failure, this should fail the request.
+		return fmt.Errorf(
+			"postgresql write failed: %w",
+			result.Error,
+		)
 	}
 
+	// Publish location update event to Redis pub/sub.
+	// Python ML service subscribes to these events asynchronously.
 	if err := s.PublishLocationUpdate(req); err != nil {
-		log.Printf("Warning: pub/sub publish failed: %v", err)
-		// NOT returning error here — core work is done
-		// Location is saved in Redis and PostgreSQL
-		// Pub/sub is a notification, not core functionality
+
+		// Pub/sub failure is NON-FATAL.
+		// Core writes already succeeded.
+		// Only the notification failed.
+		log.Printf(
+			"Warning: pub/sub publish failed: %v",
+			err,
+		)
 	}
 
-	// Both writes succeeded: return nil (no error).
+	// Everything important succeeded.
+	// Return nil = no error.
 	return nil
 }
 

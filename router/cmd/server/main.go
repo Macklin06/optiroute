@@ -46,6 +46,8 @@ func main() {
 	driverHandler := handlers.NewDriverHandler(driverService)
 	orderService := services.NewOrderService(db)
 	orderHandler := handlers.NewOrderHandler(orderService)
+	pubSubService := services.NewPubSubService(redisClient)
+	pubSubService.StartDriverUpdateSubscriber()
 
 	// Create router and setup routes
 	router := gin.Default()

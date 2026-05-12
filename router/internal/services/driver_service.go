@@ -4,6 +4,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -27,41 +28,21 @@ func NewDriverService(redisClient *redis.Client, db *gorm.DB) *DriverService {
 }
 
 // UpdateDriverLocation updates a driver's location in both Redis cache and PostgreSQL database.
-// This implements the Write-Through Cache Pattern:
-//  1. Write to cache (fast, latest state available instantly)
-//  2. Write to database (durable, historical record for analytics)
-//
-// If either write fails, the entire operation fails and error is returned.
-//
-// Parameters:
-//
-//	req: LocationUpdate with DriverID, Latitude, Longitude
-//
-// Returns:
-//
-//	error: nil on success, or wrapped error from cache/db failures
 func (s *DriverService) UpdateDriverLocation(req models.LocationUpdate) error {
 	// context.Background() = no timeout, infinite wait.
-	// In production, use context.WithTimeout() to prevent hanging requests.
 	ctx := context.Background()
 
 	// Build Redis key using pattern: "driver:location:<driver_id>"
-	// Example: "driver:location:driver_001"
-	// This pattern allows querying all drivers with KEYS "driver:location:*"
 	locationKey := fmt.Sprintf("driver:location:%s", req.DriverID)
 
 	// Build Redis value: comma-separated lat,lng
-	// Example: "12.971600,77.594600"
-	// Simple format that's fast to parse: fmt.Sscanf(val, "%f,%f", &lat, &lng)
 	locationValue := fmt.Sprintf("%f,%f", req.Latitude, req.Longitude)
 
 	// Write to Redis with 60-second TTL.
 	// After 60s, Redis auto-deletes the key (keeps only fresh data).
-	// TTL ensures stale driver locations don't stay in cache forever.
 	err := s.RedisClient.Set(ctx, locationKey, locationValue, 60*time.Second).Err()
 	if err != nil {
 		// Error wrapping with %w preserves the original error chain for debugging.
-		// Example error message: "redis write failed: connection refused"
 		return fmt.Errorf("redis write failed: %w", err)
 	}
 
@@ -75,12 +56,17 @@ func (s *DriverService) UpdateDriverLocation(req models.LocationUpdate) error {
 	}
 
 	// Insert record into PostgreSQL.
-	// GORM.Create() runs: INSERT INTO driver_locations (driver_id, latitude, longitude, created_at) VALUES  (...)
-	// result.Error contains any database error (constraint violation, connection lost, etc.).
 	if result := s.DB.Create(&record); result.Error != nil {
 		// Database write failed: wrap error and return.
 		// Handler will catch this and return HTTP 500.
 		return fmt.Errorf("postgresql write failed: %w", result.Error)
+	}
+
+	if err := s.PublishLocationUpdate(req); err != nil {
+		log.Printf("Warning: pub/sub publish failed: %v", err)
+		// NOT returning error here — core work is done
+		// Location is saved in Redis and PostgreSQL
+		// Pub/sub is a notification, not core functionality
 	}
 
 	// Both writes succeeded: return nil (no error).
@@ -88,20 +74,10 @@ func (s *DriverService) UpdateDriverLocation(req models.LocationUpdate) error {
 }
 
 // GetActiveDrivers retrieves all currently active drivers from Redis cache.
-// A driver is "active" if their location key exists in Redis (within 60-second TTL).
-// This is fast compared to querying the full database (no WHERE clause scan).
-//
-// Returns:
-//
-//	slice of DriverLocationResponse: list of active drivers with coordinates
-//	error: if Redis Keys() or Get() fails
 func (s *DriverService) GetActiveDrivers() ([]models.DriverLocationResponse, error) {
 	ctx := context.Background()
 
 	// Query Redis for all keys matching pattern "driver:location:*".
-	// Examples returned: ["driver:location:driver_001", "driver:location:driver_002", ...]
-	// This pattern scan is O(N) where N = total Redis keys, but fast enough for typical scale.
-	// In production, use SCAN for incremental iteration (doesn't block Redis).
 	keys, err := s.RedisClient.Keys(ctx, "driver:location:*").Result()
 	if err != nil {
 		// Redis connection failed or other critical error.
@@ -126,15 +102,10 @@ func (s *DriverService) GetActiveDrivers() ([]models.DriverLocationResponse, err
 
 		// Parse comma-separated coordinates string back into floats.
 		// fmt.Sscanf = "scan formatted string" (inverse of fmt.Sprintf).
-		// Input: "12.971600,77.594600"
-		// Output: lat=12.9716, lng=77.5946
 		var lat, lng float64
 		fmt.Sscanf(val, "%f,%f", &lat, &lng)
 
 		// Extract driver ID from the key.
-		// key = "driver:location:driver_001"
-		// len("driver:location:") = 16 characters
-		// key[16:] = "driver_001" (slice from position 16 to end)
 		driverID := key[len("driver:location:"):]
 
 		// Append driver to results slice.
@@ -146,6 +117,21 @@ func (s *DriverService) GetActiveDrivers() ([]models.DriverLocationResponse, err
 		})
 	}
 
-	// Return populated slice and nil error (success).
 	return drivers, nil
+}
+
+func (s *DriverService) PublishLocationUpdate(req models.LocationUpdate) error {
+	ctx := context.Background()
+
+	message := fmt.Sprintf(
+		`{"driver_id":"%s","latitude":%f,"longitude":%f}`,
+		req.DriverID, req.Latitude, req.Longitude,
+	)
+
+	err := s.RedisClient.Publish(ctx, "driver:updates", message).Err()
+	if err != nil {
+		return fmt.Errorf("failed to publish location update: %w", err)
+	}
+
+	return nil
 }

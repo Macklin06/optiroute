@@ -14,6 +14,7 @@ import (
 	"github.com/Macklin06/optiroute/router/internal/handlers"
 	"github.com/Macklin06/optiroute/router/internal/models"
 	"github.com/Macklin06/optiroute/router/internal/services"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -46,6 +47,7 @@ func main() {
 	driverHandler := handlers.NewDriverHandler(driverService)
 	orderService := services.NewOrderService(db)
 	orderHandler := handlers.NewOrderHandler(orderService)
+	// Setup PubSub Service layer
 	pubSubService := services.NewPubSubService(redisClient)
 	pubSubService.StartDriverUpdateSubscriber()
 
@@ -53,6 +55,8 @@ func main() {
 	router := gin.Default()
 
 	router.GET("/health", healthHandler)
+
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	v1 := router.Group("/api/v1")
 	{

@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -24,11 +25,20 @@ func NewDriverHandler(driverService *services.DriverService) *DriverHandler {
 
 // UpdateLocation updates a driver's location (PUT /api/v1/drivers/location)
 func (h *DriverHandler) UpdateLocation(c *gin.Context) {
+	start := time.Now()
+	status := "success"
+	defer func() {
+		duration := time.Since(start).Seconds()
+		services.LocationUpdateDuration.WithLabelValues(status).Observe(duration)
+		services.LocationUpdateTotal.WithLabelValues(status).Inc()
+	}()
+
 	// Parse and validate JSON request
 	var req models.LocationUpdate
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		// Invalid request
+		status = "validation_error"
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error":   "invalid request body",
 			"details": err.Error(),
@@ -39,6 +49,7 @@ func (h *DriverHandler) UpdateLocation(c *gin.Context) {
 	// Call service to update location
 	if err := h.DriverService.UpdateDriverLocation(req); err != nil {
 		// Server error
+		status = "error"
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
@@ -63,6 +74,8 @@ func (h *DriverHandler) GetActiveDrivers(c *gin.Context) {
 		})
 		return
 	}
+
+	services.ActiveDriversGauge.Set(float64(len(drivers)))
 
 	c.JSON(http.StatusOK, gin.H{
 		"drivers": drivers,

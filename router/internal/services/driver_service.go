@@ -176,6 +176,8 @@ func (s *DriverService) GetActiveDrivers() ([]models.DriverLocationResponse, err
 		})
 	}
 
+	ActiveDriversGauge.Set(float64(len(drivers)))
+
 	return drivers, nil
 }
 

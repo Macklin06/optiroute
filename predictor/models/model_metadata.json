@@ -1,0 +1,36 @@
+{
+  "model_type": "XGBoost Regressor",
+  "features": [
+    "hour_of_day",
+    "day_of_week",
+    "is_weekend",
+    "is_raining",
+    "base_zone_demand",
+    "prev_hour_orders",
+    "zone_encoded",
+    "is_lunch_hour",
+    "is_dinner_hour",
+    "is_breakfast_hour",
+    "is_late_night",
+    "hour_sin",
+    "hour_cos",
+    "rain_weekend"
+  ],
+  "zones": [
+    "electronic_city",
+    "hebbal",
+    "hsr_layout",
+    "indiranagar",
+    "jp_nagar",
+    "koramangala",
+    "marathahalli",
+    "whitefield"
+  ],
+  "metrics": {
+    "MAE": 1.8576288223266602,
+    "RMSE": 2.474816413775145,
+    "R2": 0.9396254420280457
+  },
+  "training_rows": 13824,
+  "test_rows": 3456
+}

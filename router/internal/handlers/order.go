@@ -18,6 +18,17 @@ func NewOrderHandler(orderService *services.OrderService) *OrderHandler {
 	}
 }
 
+// CreateOrder godoc
+// @Summary Create order
+// @Description Creates a new order in a delivery zone
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param request body models.CreateOrderRequest true "Create Order Request"
+// @Success 201 {object} models.Order
+// @Failure 422 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/orders/ [post]
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	var req models.CreateOrderRequest
 
@@ -40,6 +51,15 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	c.JSON(http.StatusCreated, order)
 }
 
+// GetPendingOrdersByZone godoc
+// @Summary Get pending orders by zone
+// @Description Returns all pending orders for a specific zone
+// @Tags Orders
+// @Produce json
+// @Param zone_id path string true "Zone ID"
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/orders/zone/{zone_id} [get]
 func (h *OrderHandler) GetPendingOrdersByZone(c *gin.Context) {
 	zoneID := c.Param("zone_id")
 

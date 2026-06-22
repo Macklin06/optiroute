@@ -23,6 +23,17 @@ func NewDriverHandler(driverService *services.DriverService) *DriverHandler {
 	}
 }
 
+// UpdateLocation godoc
+// @Summary Update driver location
+// @Description Updates the live location of a driver and stores it in Redis and PostgreSQL
+// @Tags Drivers
+// @Accept json
+// @Produce json
+// @Param request body models.LocationUpdate true "Driver location update"
+// @Success 200 {object} map[string]interface{}
+// @Failure 422 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/drivers/location [put]
 // UpdateLocation updates a driver's location (PUT /api/v1/drivers/location)
 func (h *DriverHandler) UpdateLocation(c *gin.Context) {
 	start := time.Now()
@@ -65,6 +76,14 @@ func (h *DriverHandler) UpdateLocation(c *gin.Context) {
 	})
 }
 
+// GetActiveDrivers godoc
+// @Summary Get active drivers
+// @Description Returns all currently active drivers from Redis cache
+// @Tags Drivers
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/drivers/active [get]
 // GetActiveDrivers retrieves all active drivers from cache (GET /api/v1/drivers/active)
 func (h *DriverHandler) GetActiveDrivers(c *gin.Context) {
 	drivers, err := h.DriverService.GetActiveDrivers()

@@ -1,4 +1,165 @@
+basePath: /
+definitions:
+  models.CreateOrderRequest:
+    properties:
+      customer_id:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+    required:
+    - customer_id
+    - latitude
+    - longitude
+    type: object
+  models.LocationUpdate:
+    properties:
+      driver_id:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+    required:
+    - driver_id
+    - latitude
+    - longitude
+    type: object
+  models.Order:
+    properties:
+      created_at:
+        type: string
+      customer_id:
+        type: string
+      id:
+        type: integer
+      latitude:
+        type: number
+      longitude:
+        type: number
+      status:
+        type: string
+      updated_at:
+        type: string
+      zone_id:
+        type: string
+    type: object
+host: localhost:8080
 info:
   contact: {}
-paths: {}
+  description: Real-time fleet monitoring and demand prediction platform.
+  title: OptiRoute API
+  version: "1.0"
+paths:
+  /api/v1/drivers/active:
+    get:
+      description: Returns all currently active drivers from Redis cache
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get active drivers
+      tags:
+      - Drivers
+  /api/v1/drivers/location:
+    put:
+      consumes:
+      - application/json
+      description: Updates the live location of a driver and stores it in Redis and
+        PostgreSQL
+      parameters:
+      - description: Driver location update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.LocationUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Update driver location
+      tags:
+      - Drivers
+  /api/v1/orders/:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new order in a delivery zone
+      parameters:
+      - description: Create Order Request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Order'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create order
+      tags:
+      - Orders
+  /api/v1/orders/zone/{zone_id}:
+    get:
+      description: Returns all pending orders for a specific zone
+      parameters:
+      - description: Zone ID
+        in: path
+        name: zone_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get pending orders by zone
+      tags:
+      - Orders
 swagger: "2.0"

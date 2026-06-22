@@ -24,7 +24,7 @@ func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
 		Host:     "localhost",
 		Port:     "5432",
-		User:     "postgres",
+		User:     "macklinchrissmiranda",
 		Password: "secret",
 		DBName:   "optiroute",
 	}

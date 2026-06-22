@@ -15,8 +15,20 @@ import (
 	"github.com/Macklin06/optiroute/router/internal/models"
 	"github.com/Macklin06/optiroute/router/internal/services"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/gin-contrib/cors"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
+	_ "github.com/Macklin06/optiroute/router/docs"
 )
 
+// @title OptiRoute API
+// @version 1.0
+// @description Real-time fleet monitoring and demand prediction platform.
+// @host localhost:8080
+// @BasePath /
 func main() {
 	// Connect to database and run migrations
 	dbConfig := config.NewDatabaseConfig()
@@ -53,6 +65,14 @@ func main() {
 
 	// Create router and setup routes
 	router := gin.Default()
+
+	router.Use(cors.New(cors.Config{
+		AllowOrigins: []string{"http://localhost:5173"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders: []string{"Content-Type"},
+	}))
+
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	router.GET("/health", healthHandler)
 

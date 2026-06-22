@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/Macklin06/optiroute/router/internal/models"
 	"gorm.io/gorm"
@@ -49,13 +50,33 @@ func (s *OrderService) GetPendingOrdersByZone(zoneID string) ([]models.Order, er
 	return orders, nil
 }
 
+// bangaloreZones lists the 8 named zones the XGBoost demand model was
+// trained on. Order assignment must use these exact names, not arbitrary
+// quadrants, or the predictor's LabelEncoder will reject the zone_id.
+var bangaloreZones = []struct {
+	name   string
+	lat    float64
+	lng    float64
+	radius float64
+}{
+	{"koramangala", 12.9352, 77.6245, 0.03},
+	{"indiranagar", 12.9784, 77.6408, 0.025},
+	{"whitefield", 12.9698, 77.7499, 0.04},
+	{"marathahalli", 12.9591, 77.6974, 0.03},
+	{"hsr_layout", 12.9116, 77.6389, 0.025},
+	{"jp_nagar", 12.9102, 77.5856, 0.03},
+	{"electronic_city", 12.8399, 77.6770, 0.04},
+	{"hebbal", 13.0353, 77.5972, 0.03},
+}
+
+// assignZone maps order coordinates to the nearest named zone using a
+// simple bounding-box check. Falls back to koramangala (highest base
+// demand zone) if coordinates fall outside every defined box.
 func (s *OrderService) assignZone(lat, lng float64) string {
-	if lat >= 12.97 && lng >= 77.59 {
-		return "zone_northeast"
-	} else if lat >= 12.97 && lng < 77.59 {
-		return "zone_northwest"
-	} else if lat < 12.97 && lng >= 77.59 {
-		return "zone_southeast"
+	for _, z := range bangaloreZones {
+		if math.Abs(lat-z.lat) <= z.radius && math.Abs(lng-z.lng) <= z.radius {
+			return z.name
+		}
 	}
-	return "zone_southwest"
+	return "koramangala"
 }

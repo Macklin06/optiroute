@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def start_subscriber():
     def _subscribe():
-        client = redis.Redis(host="localhost", port=6379, db=0)
+        client = redis.Redis(host="redis", port=6379, db=0)
         pubsub = client.pubsub()
         pubsub.subscribe("driver:updates")
 

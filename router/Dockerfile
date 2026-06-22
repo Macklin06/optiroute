@@ -1,8 +1,11 @@
-FROM golang:1.24-alpine
+FROM golang:1.26-alpine
 
 WORKDIR /app
 
 COPY go.mod go.sum ./
+
+ENV GOPROXY=https://proxy.golang.org,direct
+
 RUN go mod download
 
 COPY . .

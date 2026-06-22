@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+
+# Environment
+.env
+
+# Logs
+*.log
+
+# Mac
+.DS_Store

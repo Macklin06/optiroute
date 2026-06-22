@@ -22,10 +22,10 @@ type DatabaseConfig struct {
 // NewDatabaseConfig creates config with default local values
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
-		Host:     "localhost",
+		Host:     "postgres",
 		Port:     "5432",
-		User:     "macklinchrissmiranda",
-		Password: "secret",
+		User:     "postgres",
+		Password: "postgres",
 		DBName:   "optiroute",
 	}
 }

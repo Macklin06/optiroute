@@ -1,0 +1,22 @@
+# Git
+.git
+.gitignore
+
+# Mac
+.DS_Store
+
+# IDE
+.vscode
+
+# Build outputs
+bin/
+dist/
+
+# Logs
+*.log
+
+# Environment
+.env
+
+# Tests
+coverage.out

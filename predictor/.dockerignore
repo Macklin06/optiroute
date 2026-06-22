@@ -1,0 +1,36 @@
+# Virtual environments
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+
+# Environment
+.env
+
+# Logs
+*.log
+
+# Mac
+.DS_Store
+
+# Training artifacts
+notebooks/
+data/
+datasets/
+
+# Model training outputs
+*.csv
+*.xlsx

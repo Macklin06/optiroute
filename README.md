@@ -209,7 +209,6 @@ optiroute/
 │  │  ├─ services/
 │  │  ├─ models/
 │  │  └─ config/
-│  ├─ Dockerfile
 │  └─ go.mod
 │  └─ Dockerfile
 │
@@ -223,12 +222,10 @@ optiroute/
 │  │  └─ label_encoder.pkl
 │  ├─ requirements.txt
 │  └─ Dockerfile
-│  └─ Dockerfile
 │
 ├─ dashboard/                  # Vue 3 frontend (Leaflet, Vite)
 │  ├─ src/App.vue
 │  ├─ package.json
-│  └─ Dockerfile
 │  └─ Dockerfile
 │
 ├─ docs/

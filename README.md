@@ -1,52 +1,21 @@
-# OptiRoute — Real-time Fleet Demand Prediction
+# OptiRoute — Real-Time Fleet Monitoring & Demand Prediction
 
-A multi-service system that predicts short-term demand per city zone and visualizes live driver locations for fleet optimization.
+OptiRoute is a real-time fleet monitoring and demand prediction system built to explore how delivery platforms can track active drivers and forecast demand across different city zones.
+
+The project combines a Go backend, Redis caching, PostgreSQL persistence, a Python-based XGBoost predictor, and a Vue dashboard to visualize live driver locations and demand predictions.
 
 **Tech Stack**: Go · Python · Vue 3 · XGBoost · Redis · PostgreSQL · Leaflet · FastAPI · Gin
 
 ---
 
-## Quick Demo (Local)
-
-### Prerequisites
-- Docker & Docker Compose
-- Git
-
-### 1. Clone & Navigate
-```bash
-git clone <repo-url> optiroute
-cd optiroute
-```
-
-### 2. Start Services
-```bash
-docker-compose up
-```
-
-This spins up:
-- **Redis** (port 6379) — cache + pub/sub
-- **PostgreSQL** (port 5432) — persistent store
-- **Router** (port 8080) — Go API
-- **Predictor** (port 8000) — Python ML service
-- **Dashboard** (port 5173) — Vue frontend
-
-### 3. Seed Demo Fleet & View Dashboard
-In a new terminal:
-```bash
-# Start the demo fleet simulator (continuously updates 20 drivers every 2 seconds)
-cd optiroute
-bash demo_simulator.sh
-```
-
-Then open **http://localhost:5173** in your browser.
-
-Click the **"Spawn demo fleet"** button in the sidebar to populate the map with 20 active drivers.
-
----
-
 ## Project Overview
 
-**OptiRoute** predicts demand for last-mile delivery in real-time zones and helps operators pre-position drivers.
+**OptiRoute** focuses on two main problems:
+
+1. Tracking active drivers in real time.
+2. Predicting short-term demand in different city zones.
+
+The system stores live driver state in Redis for fast access, persists historical data in PostgreSQL, and uses an XGBoost model to estimate future demand based on zone and time-based features.
 
 ### Key Components
 
@@ -68,11 +37,15 @@ Driver Update:
     ├→ Redis SET (TTL 60s)
     ├→ Postgres INSERT
     └→ Redis PUBLISH (driver:updates)
-      ↓
-  Predictor (subscribes)
-      ↓
-  Dashboard (polls /drivers/active)
-    → renders live markers
+      
+ 
+  Dashboard
+    ↓ GET /drivers/active
+  Router
+    ↓
+  Redis
+    ↓
+  Returns active drivers
 
 Demand Prediction:
   Dashboard
@@ -87,10 +60,9 @@ Demand Prediction:
 
 ## Architecture
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed design documentation.
+![Architecture Diagram](docs/system-diagram.png)
 
-### System Diagram
-For an interactive diagram, download and open [docs/system-diagram.excalidraw](docs/system-diagram.excalidraw) in **[Excalidraw](https://excalidraw.com)**.
+The Go router handles driver updates and order management. Redis stores live driver state and publishes driver update events. PostgreSQL stores historical records. A Python FastAPI service subscribes to driver events and serves demand predictions generated using an XGBoost model. The Vue dashboard visualizes active drivers and predicted demand across zones.
 
 ---
 
@@ -202,18 +174,27 @@ redis-server
 # Create database: createdb -U postgres optiroute
 ```
 
----
+## Running With Docker
 
-## Demo Simulator
-
-Continuously updates 20 demo drivers with slight random movement:
+### Build and Start All Services
 
 ```bash
-cd optiroute
-bash demo_simulator.sh
+docker compose up --build
 ```
 
-Or use the **"Spawn demo fleet"** button in the dashboard UI (it's built-in).
+This starts:
+
+- Router (Go) → http://localhost:8080
+- Predictor (FastAPI) → http://localhost:8000
+- Dashboard (Vue) → http://localhost:5173
+- Redis → localhost:6379
+- PostgreSQL → localhost:5432
+
+### Stop Services
+
+```bash
+docker compose down
+```
 
 ---
 
@@ -230,6 +211,7 @@ optiroute/
 │  │  └─ config/
 │  ├─ Dockerfile
 │  └─ go.mod
+│  └─ Dockerfile
 │
 ├─ predictor/                  # Python backend (FastAPI, XGBoost, SHAP)
 │  ├─ app/
@@ -241,109 +223,41 @@ optiroute/
 │  │  └─ label_encoder.pkl
 │  ├─ requirements.txt
 │  └─ Dockerfile
+│  └─ Dockerfile
 │
 ├─ dashboard/                  # Vue 3 frontend (Leaflet, Vite)
 │  ├─ src/App.vue
 │  ├─ package.json
 │  └─ Dockerfile
+│  └─ Dockerfile
 │
 ├─ docs/
-│  ├─ ARCHITECTURE.md
-│  ├─ system-diagram.excalidraw
 │  └─ system-diagram.png
 │
 ├─ docker-compose.yml
-├─ demo_simulator.sh
 ├─ .env.example
 └─ README.md
 ```
 
 ---
 
-## Deployment
 
-### AWS (Free-Tier Friendly Setup)
-
-#### Option 1: ECS Fargate + RDS + ElastiCache (Easiest)
-1. Build and push images to **ECR**.
-2. Create **ECS Service** for router and predictor.
-3. Set up **RDS PostgreSQL** (t3.micro).
-4. Set up **ElastiCache Redis** (cache.t3.micro).
-5. Use **ALB** to route traffic to router service.
-6. Deploy dashboard to **S3 + CloudFront**.
-
-#### Option 2: Single EC2 Instance (Cheapest)
-1. Launch **t3.micro EC2** (free tier, Ubuntu 22.04).
-2. Install Docker & Docker Compose.
-3. `docker-compose up`
-4. Use **Elastic IP** + **Route53** for DNS.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for full deployment details.
-
----
-
-## Development & Debugging
-
-### View Logs
-```bash
-docker-compose logs -f router
-docker-compose logs -f predictor
-docker-compose logs -f dashboard
-```
-
-### Redis Inspection
-```bash
-redis-cli
-KEYS driver:location:*
-GET driver:location:driver_001
-SUBSCRIBE driver:updates
-```
-
-### Postgres Inspection
-```bash
-psql -h localhost -U postgres -d optiroute
-\dt  # List tables
-SELECT * FROM driver_locations LIMIT 10;
-```
-
----
-
-## Interview Talking Points
+## Design Decisions & Trade-offs
 
 1. **Multi-service Architecture**: Separation of concerns (router, predictor, frontend); scales independently.
 2. **Redis + Postgres Trade-off**: Redis for speed + TTL + pub/sub; Postgres for durability + history.
 3. **Circuit Breaker Pattern**: Graceful degradation — if Redis fails, system still works via Postgres fallback.
 4. **ML Explainability**: SHAP shows which features influenced predictions (interpretability).
 5. **Resilience**: TTL-based cleanup, conditional DB updates, failure mode handling.
-6. **Scaling**: Cache cluster, read replicas, stateless predictor (horizontal scale).
+6. **Scaling**: The current design keeps services independent, making it easier to scale the router and predictor separately in the future.
 
 ---
 
-## FAQs
+## Future Improvements
 
-**Q: Can I deploy this on AWS free tier?**  
-A: Yes. Use t3.micro EC2, RDS free tier (t3.micro), and ElastiCache cache.t3.micro. Dashboard on S3 + CloudFront.
-
-**Q: How do I add real drivers instead of simulators?**  
-A: Integrate a driver mobile app that hits `PUT /api/v1/drivers/location` with periodic heartbeats.
-
-**Q: What's the TTL for drivers?**  
-A: 60 seconds. Drivers must heartbeat at least every 60s to remain "active". Tune based on your use case.
-
-**Q: Is the dashboard secure?**  
-A: Currently no auth. Add JWT + role-based access (admin, operator, driver) for production.
-
----
-
-## Resume Summary (2–3 lines)
-
-**OptiRoute** — Built a real-time fleet optimization system: Go router handles live driver ingestion with Redis cache + Postgres durability; Python FastAPI service predicts 30m demand via XGBoost + SHAP; Vue dashboard visualizes demand heatmap + driver locations. Implemented circuit breaker, pub/sub, and TTL-based cleanup for resilience.
-
----
-
-## License
-MIT
-
----
-
-Ready to demo? Start with `docker-compose up` and open **http://localhost:5173** 🚀
+- Dockerized deployment using Docker Compose
+- AWS deployment (EC2)
+- Swagger/OpenAPI documentation
+- Real-time dashboard updates using WebSockets
+- Better demand prediction using real-world datasets
+- Authentication and role-based access control
